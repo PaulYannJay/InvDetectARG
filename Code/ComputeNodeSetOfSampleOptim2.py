@@ -36,27 +36,31 @@ ts = tskit.load(TreeFile)
 #samples = np.zeros(ts.num_samples, dtype=np.int32)
 samples = ts.num_samples
 #nodes = np.zeros((ts.num_trees,ts.num_nodes), dtype=np.int32)
-nodes = np.zeros((ts.num_trees,ts.num_nodes), dtype=np.int32)
+sumNodes = np.zeros((ts.num_trees,ts.num_nodes), dtype=np.int32)
+harmoSumNodes = np.zeros((ts.num_trees,ts.num_nodes), dtype=np.float64)
 nSample = np.zeros((ts.num_trees,ts.num_nodes), dtype=np.int32)
+parent = np.zeros(ts.num_nodes, dtype=np.int32)
 #for u in range(ts.num_samples):
 #    samples[u] = u
 
 @nb.jit(nopython=True)
-def GetSampleSum(index, nodes, nSample):
+def GetSampleSum(index, sumNodes, harmoSumNodes, nSample, parent):
     for u in range(samples):
-        nodes[index, u]=u
+        sumNodes[index, u]=u
+        harmoSumNodes[index, u]=1/(u+1) #Using '+1' to avoid issue with the samplz '0'
         nSample[index, u]=1
         v = u
-        while v != tskit.NULL:
-            nodes[index, parent[v]]=nodes[index, parent[v]]+u
+        while parent[v] != tskit.NULL:
+            sumNodes[index, parent[v]]=sumNodes[index, parent[v]]+u
+            harmoSumNodes[index, parent[v]]=harmoSumNodes[index, parent[v]]+1/(u+1)
             nSample[index, parent[v]]=nSample[index, parent[v]]+1
             v=parent[v]
 #def GetSampleSum(index):
 #    for u in samples:
-#        nodes[index, u]=u
+#        sumNodes[index, u]=u
 #        v = u
 #        while v != tskit.NULL:
-#            nodes[index, parent[v]]=nodes[index, parent[v]]+u
+#            sumNodes[index, parent[v]]=sumNodes[index, parent[v]]+u
 #            v=parent[v]
         
 #tree=ts.first()
@@ -64,22 +68,29 @@ TreeList=ts.trees(sample_lists=True) #When iterating over *.trees(), it clear th
 #nbtree=ts_sub.num_trees
 #TreeID=1
 for tree in TreeList:
-    parent = np.zeros(ts.num_nodes, dtype=np.int32)
+    #parent = np.zeros(ts.num_nodes, dtype=np.int32)
     for u in range(ts.num_nodes):
         parent[u] = tree.parent(u)
     print(tree.index)
    # print(tree.parent(0))
-    GetSampleSum(tree.index, nodes, nSample)
-   # print(nodes)
+    GetSampleSum(tree.index, sumNodes, harmoSumNodes, nSample, parent)
+   # print(sumNodes)
    # print(nodes[tree.index, 7214])
    # print(nSample[tree.index, 7214])
    # print(parent)
    # #kprint(nSample)
 
 #print("Tree sequence: Loaded !")
-nodes.tofile("test.txt", sep=" ")
-nSample.tofile("testSample.txt", sep=" ")
-parent.tofile("testParent.txt", sep=" ")
+#nodes.tofile("test.txt", sep=" ")
+sampleMean=sumNodes/nSample
+sampleHarmoMean=nSample/harmoSumNodes
+np.savetxt("test.txt", sumNodes.astype(int), fmt='%i', delimiter=" ")
+np.savetxt("testSample.txt", nSample.astype(int), fmt='%i', delimiter=" ")
+np.savetxt("testParent.txt", parent.astype(int), fmt='%i', delimiter=" ")
+np.savetxt("testMean.txt", sampleMean, delimiter=" ")
+np.savetxt("testHarmoMean.txt", sampleHarmoMean, delimiter=" ")
+#np.savetxt("testHarmo.txt", harmoSumNodes, delimiter=" ")
+#ID=0
 #ID=0
 #NodeTim={}
 #for value in ts.tables.nodes.time: #Store in a dictionary the age of nodes.
