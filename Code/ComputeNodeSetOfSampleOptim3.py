@@ -7,6 +7,7 @@ import tsinfer
 import getopt
 import tskit
 import statistics
+import timeit
 from tqdm import tqdm
 
 def main(argv):
@@ -41,6 +42,7 @@ nodes = ts.num_nodes
 #    samples[u] = u
 print("sisi")
 @nb.jit(nopython=True)
+#@nb.jit(nopython=True, parallel=True)
 def GetSampleSum(parent):
     sumNodes = np.zeros(len(parent)+1, dtype=np.int32)
     harmoSumNodes = np.zeros(len(parent)+1, dtype=np.float64)
@@ -72,23 +74,27 @@ print("sisi")
 TreeList=ts.trees(sample_lists=True) #When iterating over *.trees(), it clear the list. So we reload it
 #nbtree=ts_sub.num_trees
 #TreeID=1
-for tree in TreeList:
-    #parent = np.zeros(ts.num_nodes, dtype=np.int32)
-    parent=tree.parent_array
-    parent=np.delete(parent, np.argwhere(parent==-1))
-    uniq, uniqInd = np.unique(parent, return_inverse=True)
-    sampleMean, sampleHormoMean=GetSampleSum(uniqInd+samples)
-    #sampleMean, sampleHormoMean=GetSampleSum(uniqInd)
-    #print(sampleMean)
-    #print(uniq)
-    #print(uniqInd+samples)
-    #print(uniqInd)
-    #print(len(uniqInd)-samples)
-   # print(sumNodes)
-    print(tree.index)
-   # print(nSample[tree.index, 7214])
-   # print(parent)
-   # #kprint(nSample)
+with open("testHarmoMean.txt", 'a') as f:
+    for tree in TreeList:
+        #parent = np.zeros(ts.num_nodes, dtype=np.int32)
+        parent=tree.parent_array
+        parent=np.delete(parent, np.argwhere(parent==-1))
+        uniq, uniqInd = np.unique(parent, return_inverse=True)
+        starttime = timeit.default_timer()
+        sampleMean, sampleHarmoMean=GetSampleSum(uniqInd+samples)
+        np.savetxt(f, np.rot90([uniq,sampleMean,sampleHarmoMean, np.repeat(tree.interval[0], len(uniq)), np.repeat(tree.interval[1], len(uniq))]), delimiter=" ")
+        print("The time difference is :", timeit.default_timer() - starttime)
+        #sampleMean, sampleHormoMean=GetSampleSum(uniqInd)
+        #print(sampleMean)
+        #print(uniq)
+        #print(uniqInd+samples)
+        #print(uniqInd)
+        #print(len(uniqInd)-samples)
+       # print(sumNodes)
+        print(tree.index)
+       # print(nSample[tree.index, 7214])
+       # print(parent)
+       # #kprint(nSample)
 
 #print("Tree sequence: Loaded !")
 #nodes.tofile("test.txt", sep=" ")
