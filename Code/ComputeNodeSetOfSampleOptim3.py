@@ -74,16 +74,29 @@ print("sisi")
 TreeList=ts.trees(sample_lists=True) #When iterating over *.trees(), it clear the list. So we reload it
 #nbtree=ts_sub.num_trees
 #TreeID=1
+#@nb.jit(nopython=T)
+def GetParentArray(nodes, tree):
+    parent=np.zeros(len(nodes), dtype=np.int32)
+    for u in range(len(nodes))
+        {parent[u]=tree.parent(u)
+    return parent
+
 with open("testHarmoMean.txt", 'a') as f:
     for tree in TreeList:
-        #parent = np.zeros(ts.num_nodes, dtype=np.int32)
-        parent=tree.parent_array
-        parent=np.delete(parent, np.argwhere(parent==-1))
-        uniq, uniqInd = np.unique(parent, return_inverse=True)
         starttime = timeit.default_timer()
+        #parent = np.zeros(ts.num_nodes, dtype=np.int32)
+        #parent=tree.parent_array
+        parent=getParentArray(list(tree.nodes, tree))
+        print("The time difference is :", timeit.default_timer() - starttime)
+         #parent=np.delete(parent, np.argwhere(parent==-1))
+        print("The time difference is :", timeit.default_timer() - starttime)
+        uniq, uniqInd = np.unique(parent, return_inverse=True)
+        print("The time difference is :", timeit.default_timer() - starttime)
+        starttime2 = timeit.default_timer()
         sampleMean, sampleHarmoMean=GetSampleSum(uniqInd+samples)
         np.savetxt(f, np.rot90([uniq,sampleMean,sampleHarmoMean, np.repeat(tree.interval[0], len(uniq)), np.repeat(tree.interval[1], len(uniq))]), delimiter=" ")
         print("The time difference is :", timeit.default_timer() - starttime)
+        print("The time difference is :", timeit.default_timer() - starttime2)
         #sampleMean, sampleHormoMean=GetSampleSum(uniqInd)
         #print(sampleMean)
         #print(uniq)
