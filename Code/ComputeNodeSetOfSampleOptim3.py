@@ -39,26 +39,27 @@ nodes = ts.num_nodes
 #nodes = np.zeros((ts.num_trees,ts.num_nodes), dtype=np.int32)
 #for u in range(ts.num_samples):
 #    samples[u] = u
-
+print("sisi")
 @nb.jit(nopython=True)
 def GetSampleSum(parent):
-    sumNodes = np.zeros(nodes, dtype=np.int32)
-    harmoSumNodes = np.zeros(nodes, dtype=np.float64)
-    nSample = np.zeros(nodes, dtype=np.int32)
+    sumNodes = np.zeros(len(parent)+1, dtype=np.int32)
+    harmoSumNodes = np.zeros(len(parent)+1, dtype=np.float64)
+    nSample = np.zeros(len(parent)+1, dtype=np.int32)
     for u in range(samples):
-        sumNodes[u]=u
-        #harmoSumNodes[u]=1/(u+1) #Using '+1' to avoid issue with the samplz '0'
-        #nSample[index, u]=1
+       # sumNodes[u]=u
         v = u
-        while parent[v] != tskit.NULL:
+        while v < len(parent):
             sumNodes[parent[v]]=sumNodes[parent[v]]+u
             harmoSumNodes[parent[v]]=harmoSumNodes[parent[v]]+1/(u+1)
             nSample[parent[v]]=nSample[parent[v]]+1
             v=parent[v]
     sampleMean=sumNodes/nSample
+    sampleMean=sampleMean[~np.isnan(sampleMean)]
     sampleHarmoMean=nSample/harmoSumNodes
+    sampleHarmoMean=sampleHarmoMean[~np.isnan(sampleHarmoMean)]
     return sampleMean, sampleHarmoMean
     
+print("sisi")
 #def GetSampleSum(index):
 #    for u in samples:
 #        sumNodes[index, u]=u
@@ -72,11 +73,17 @@ TreeList=ts.trees(sample_lists=True) #When iterating over *.trees(), it clear th
 #nbtree=ts_sub.num_trees
 #TreeID=1
 for tree in TreeList:
-    parent = np.zeros(ts.num_nodes, dtype=np.int32)
-    for u in range(ts.num_nodes):
-        parent[u] = tree.parent(u)
-    print(tree.index)
-    sampleMean, sampleHormoMean=GetSampleSum(parent)
+    #parent = np.zeros(ts.num_nodes, dtype=np.int32)
+    parent=tree.parent_array
+    parent=np.delete(parent, np.argwhere(parent==-1))
+    uniq, uniqInd = np.unique(parent, return_inverse=True)
+    sampleMean, sampleHormoMean=GetSampleSum(uniqInd+samples)
+    #sampleMean, sampleHormoMean=GetSampleSum(uniqInd)
+    print(sampleMean)
+    print(uniq)
+    #print(uniqInd+samples)
+    #print(uniqInd)
+    #print(len(uniqInd)-samples)
    # print(sumNodes)
    # print(nodes[tree.index, 7214])
    # print(nSample[tree.index, 7214])
