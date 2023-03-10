@@ -51,6 +51,7 @@ def GetSampleSum(parent):
        # sumNodes[u]=u
         v = u
         while v < len(parent):
+            #while v  != tskit.NULL:
             sumNodes[parent[v]]=sumNodes[parent[v]]+u
             harmoSumNodes[parent[v]]=harmoSumNodes[parent[v]]+1/(u+1)
             nSample[parent[v]]=nSample[parent[v]]+1
@@ -75,23 +76,33 @@ TreeList=ts.trees(sample_lists=True) #When iterating over *.trees(), it clear th
 #nbtree=ts_sub.num_trees
 #TreeID=1
 #@nb.jit(nopython=T)
-def GetParentArray(nodes, tree):
-    parent=np.zeros(len(nodes), dtype=np.int32)
-    for u in range(len(nodes))
-        {parent[u]=tree.parent(u)
+def getParentArray(nodes):
+    parent=np.zeros(len(nodes)-1, dtype=np.int32)
+    i=0
+    for u in nodes[:-1]:
+        parent[i]=tree.parent(u)
+        i=i+1
     return parent
 
 with open("testHarmoMean.txt", 'a') as f:
     for tree in TreeList:
+        print(tree.index)
         starttime = timeit.default_timer()
         #parent = np.zeros(ts.num_nodes, dtype=np.int32)
+        parent=getParentArray(list(tree.nodes(order='timeasc')))
+        #uniq, uniqInd = np.unique(parent, return_inverse=True)
+        #print(parent)
+        #print(uniqInd)
+        #print("The time difference is :", timeit.default_timer() - starttime)
+        #starttime = timeit.default_timer()
         #parent=tree.parent_array
-        parent=getParentArray(list(tree.nodes, tree))
-        print("The time difference is :", timeit.default_timer() - starttime)
-         #parent=np.delete(parent, np.argwhere(parent==-1))
-        print("The time difference is :", timeit.default_timer() - starttime)
+        #parent=np.delete(parent, np.argwhere(parent==-1))
+        #print("The time difference is :", timeit.default_timer() - starttime)
+        #print(parent)
+        #print("The time difference is :", timeit.default_timer() - starttime)
         uniq, uniqInd = np.unique(parent, return_inverse=True)
-        print("The time difference is :", timeit.default_timer() - starttime)
+        #print(uniqInd)
+        #print("The time difference is :", timeit.default_timer() - starttime)
         starttime2 = timeit.default_timer()
         sampleMean, sampleHarmoMean=GetSampleSum(uniqInd+samples)
         np.savetxt(f, np.rot90([uniq,sampleMean,sampleHarmoMean, np.repeat(tree.interval[0], len(uniq)), np.repeat(tree.interval[1], len(uniq))]), delimiter=" ")
@@ -104,7 +115,6 @@ with open("testHarmoMean.txt", 'a') as f:
         #print(uniqInd)
         #print(len(uniqInd)-samples)
        # print(sumNodes)
-        print(tree.index)
        # print(nSample[tree.index, 7214])
        # print(parent)
        # #kprint(nSample)
