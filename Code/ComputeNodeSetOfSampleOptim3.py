@@ -44,21 +44,15 @@ print("sisi")
 @nb.jit(nopython=True)
 #@nb.jit(nopython=True, parallel=True)
 def GetSampleSum(parent):
-    #sumNodes = np.zeros(len(parent), dtype=np.int32)
-    #harmoSumNodes = np.zeros(len(parent), dtype=np.float64)
-    #nSample = np.zeros(len(parent), dtype=np.int32)
     sumNodes = np.zeros(len(parent)+1, dtype=np.int32)
     harmoSumNodes = np.zeros(len(parent)+1, dtype=np.float64)
     nSample = np.zeros(len(parent)+1, dtype=np.int32)
     maxval=parent.max()
-    print(maxval)
+    #print(maxval)
     for u in range(samples):
-       # sumNodes[u]=u
         v = u
         #while v < len(parent):
         while v < maxval:
-            #while v != samples:
-            #while v  != tskit.NULL:
             sumNodes[parent[v]]=sumNodes[parent[v]]+u
             harmoSumNodes[parent[v]]=harmoSumNodes[parent[v]]+1/(u+1)
             nSample[parent[v]]=nSample[parent[v]]+1
@@ -79,53 +73,32 @@ def GetSampleSum(parent):
         
 #tree=ts.first()
 TreeList=ts.trees(sample_lists=True) #When iterating over *.trees(), it clear the list. So we reload it
-#nbtree=ts_sub.num_trees
+nbtree=ts.num_trees
 #TreeID=1
 #@nb.jit(nopython=T)
 def getParentArray(nodes):
-    #parent=np.zeros(len(nodes)-1, dtype=np.int32)
     parent=np.zeros(len(nodes), dtype=np.int32)
     i=0
     for u in nodes:
-        #for u in nodes[:-1]:
         parent[i]=tree.parent(u)
         i=i+1
     return parent[:-1]
 
 with open("testHarmoMean.txt", 'a') as f:
     for tree in TreeList:
-        #if(tree.index >2):
-        print(tree.index)
-        starttime = timeit.default_timer()
-        #parent = np.zeros(ts.num_nodes, dtype=np.int32)
-#        print(list(tree.nodes(order='timeasc')))
+        #if(tree.index <5):
+        print("Tree:" + str(tree.index) + "/" + str(nbtree))
+        #starttime = timeit.default_timer()
         nodes=list(tree.nodes(order='timeasc'))
         nodes.sort()
         parent=getParentArray(nodes)
-        #np.savetxt("testParent1.txt", parent.astype(int), fmt='%i', delimiter=" ")
-        uniq, uniqInd = np.unique(parent, return_inverse=True)
-#        print(parent)
-#        print(uniqInd+samples)
-#        print(uniq)
-        #print("The time difference is :", timeit.default_timer() - starttime)
-        #starttime = timeit.default_timer()
-        #parent=tree.parent_array
-        #np.savetxt("testParent2.txt", parent.astype(int), fmt='%i', delimiter=" ")
-        #parent=np.delete(parent, np.argwhere(parent==-1))
-        #np.savetxt("testParent3.txt", parent.astype(int), fmt='%i', delimiter=" ")
-        #print("The time difference is :", timeit.default_timer() - starttime)
-#        print(parent)
-#        #print("The time difference is :", timeit.default_timer() - starttime)
-        #uniq, uniqInd = np.unique(parent, return_inverse=True)
-#        print(uniqInd+samples)
-#        print(uniq)
-        #print("The time difference is :", timeit.default_timer() - starttime)
-        starttime2 = timeit.default_timer()
+        uniq, uniqInd = np.unique(parent, return_inverse=True)#Get unique value and sorted indive of parent
+        #starttime2 = timeit.default_timer()
         sampleMean, sampleHarmoMean=GetSampleSum(uniqInd+samples)
 #        print(sampleMean)
         np.savetxt(f, np.rot90([uniq,sampleMean,sampleHarmoMean, np.repeat(tree.interval[0], len(uniq)), np.repeat(tree.interval[1], len(uniq))]), delimiter=" ")
-        print("The time difference is :", timeit.default_timer() - starttime)
-        print("The time difference is :", timeit.default_timer() - starttime2)
+        #print("The time difference is :", timeit.default_timer() - starttime)
+        #print("The time difference is :", timeit.default_timer() - starttime2)
         #sampleMean, sampleHormoMean=GetSampleSum(uniqInd)
         #print(sampleMean)
         #print(uniq)
