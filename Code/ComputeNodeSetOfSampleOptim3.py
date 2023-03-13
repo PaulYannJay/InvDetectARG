@@ -59,7 +59,7 @@ def GetSampleSum(parent): #Function to identify node using two statistic: the me
     return sampleMean, sampleHarmoMean
     
 TreeList=ts.trees(sample_lists=True) #List of Tree
-nbtree=ts.num_trees #Number of Tree
+nbtree=ts.num_trees - 1 #Number of Tree
 
 @nb.jit(nopython=True)
 def getParentTime(parentNod): #Function to get the age of the focal node
@@ -72,13 +72,21 @@ def getParentTime(parentNod): #Function to get the age of the focal node
             time[i]=-1 #else return "-1"
         i=i+1
     return time
+
+#def getNodeBranchLength(nodes): #Uncomment to get branch length
+#    branchLength=np.zeros(len(nodes), dtype=np.int32)
+#    i=0
+#    for u in nodes:
+#        branchLength[i]=tree.branch_length(u)
+#        i=i+1
+#    return  branchLength 
+
         
 def getParentArray(nodes): #Function to get the parent of the focal nodes #I do not remember why, but it seem to not work if I replace the "tree.parent(u)" by a code looking at the ts.parent_array (as done before; which should be more efficient as it allow using numba). Maybe try again latter.
     parent=np.zeros(len(nodes), dtype=np.int32)
     i=0
     for u in nodes:
-        parentu=tree.parent(u)
-        parent[i]=parentu
+        parent[i]=tree.parent(u)
         i=i+1
     return parent[:-1]
 
@@ -93,7 +101,10 @@ with open(Prefix + ".NodeStat", 'w') as f: #output file
         parent=getParentArray(nodes)#Get the array of the parent of each node (allow reconstucting the tree)
         uniq, uniqInd = np.unique(parent, return_inverse=True)#Get unique ID and sorted indices of parents. This is the main trick to save time. In the exemples from the tskit github page, kelleher et al use a function like "parent = np.zeros(ts.num_nodes, dtype=np.int32); for u in range(ts.num_nodes): parent[u] = tree.parent(u)". The issue with this is that it create and manipulate a huge array that it is mostly empty (each tree involves only a small subset of nodes). To manipulate only the nodes form the focal tree, I first obtain the parent of each nodes. Then I extract only uniq value, so I obtain unique node. Then, to store the relation between the nodes (parent-child) in an "UniqInd" indice array. For each node, the the uniqINd arrayu indicate what is its parent in the uniqArray. So, the UniqInd array contains a kind of new ID for each parent nodes (so excluding sample node). These new ID are comprise between 0 (the parent node with the smaller age) and "z", the parent node with the oldest age, which is the root. We will use these new ID to traverse trees. Importantly, we need to modify the new ID by adding to them the number of samples (the ID "5" become "15" if there are 10 different samples). This allow traversing function to traverse iteratively the parents and not loop over samples again and again (if there are 10 samples [0-9], the parent new ID must start at "1O" and not at 0 (IDs 0 to 9 are the sample nodes)
         time=getParentTime(uniq) #Get the time of each parent nodes
+#        branchLength=getNodeBranchLength(uniq) #uncomment to calculate the branch lenght
+#        parentAge=time+branchLength
         sampleMean, sampleHarmoMean=GetSampleSum(uniqInd+samples) #traverse the tree and get the means
         np.savetxt(f, np.rot90([uniq,sampleMean,sampleHarmoMean, np.repeat(tree.interval[0], len(uniq)), np.repeat(tree.interval[1], len(uniq)), time]), delimiter=" ") #save output
+        #np.savetxt(f, np.rot90([uniq,sampleMean,sampleHarmoMean, np.repeat(tree.interval[0], len(uniq)), np.repeat(tree.interval[1], len(uniq)), time, parentAge]), delimiter=" ") #save outputuncomment to output parent age
         
 print("Done ! Well done !")
