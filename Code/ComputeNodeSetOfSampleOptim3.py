@@ -31,136 +31,69 @@ def main(argv):
     print('Output prefix is ', Prefix)
 
 main(sys.argv[1:])
-textfileNode=open(Prefix + ".NodeStat", "w") #open the output file
+#textfileNode=open(Prefix + ".NodeStat", "w") #open the output file
 
 ts = tskit.load(TreeFile)
-#samples = np.zeros(ts.num_samples, dtype=np.int32)
-samples = ts.num_samples
-nodes = ts.num_nodes
-#nodes = np.zeros((ts.num_trees,ts.num_nodes), dtype=np.int32)
-#for u in range(ts.num_samples):
-#    samples[u] = u
-print("sisi")
-@nb.jit(nopython=True)
+times=ts.nodes_time #np array of node age
+samples = ts.num_samples #Number of samples
+nodes = ts.num_nodes #Number of nodes
+
+@nb.jit(nopython=True) #Use numba for fast calculation
 #@nb.jit(nopython=True, parallel=True)
-def GetSampleSum(parent):
-    sumNodes = np.zeros(len(parent)+1, dtype=np.int32)
-    harmoSumNodes = np.zeros(len(parent)+1, dtype=np.float64)
-    nSample = np.zeros(len(parent)+1, dtype=np.int32)
-    maxval=parent.max()
-    #print(maxval)
-    for u in range(samples):
-        v = u
-        #while v < len(parent):
-        while v < maxval:
-            sumNodes[parent[v]]=sumNodes[parent[v]]+u
-            harmoSumNodes[parent[v]]=harmoSumNodes[parent[v]]+1/(u+1)
-            nSample[parent[v]]=nSample[parent[v]]+1
-            v=parent[v]
-    sampleMean=sumNodes/nSample
-    sampleMean=sampleMean[~np.isnan(sampleMean)]
-    sampleHarmoMean=nSample/harmoSumNodes
-    sampleHarmoMean=sampleHarmoMean[~np.isnan(sampleHarmoMean)]
+def GetSampleSum(parent): #Function to identify node using two statistic: the mean of the ID of the samples coalscing to the node and the harmonic mean of the same vector (with slight modification: see below). This function iterate through the tree and visit each node.
+    sumNodes = np.zeros(len(parent)+1, dtype=np.int32) #Sum of the ID of the sample that coalesce to the nodes
+    harmoSumNodes = np.zeros(len(parent)+1, dtype=np.float64) #Harmonic sum
+    nSample = np.zeros(len(parent)+1, dtype=np.int32)#number of sample that coalesce to the nodes
+    maxval=parent.max()#the ID of the oldest parent (the root)
+    for u in range(samples):#for all samples. u is the ID of the sample
+        v = u # v is the ID of the focal nodes 
+        while v < maxval: #while the focal nodes is not the root
+            sumNodes[parent[v]]=sumNodes[parent[v]]+u #Increment the sum of the parent of the focal node by the ID of the focal sample
+            harmoSumNodes[parent[v]]=harmoSumNodes[parent[v]]+1/(u+1) #Same but with the harmonic value. Here, I add "+1" to avoid dividing by 0 for the first sample. So it is not exactly the harmonic mean but it has similar properties 
+            nSample[parent[v]]=nSample[parent[v]]+1 #Same with the number of sample
+            v=parent[v] #move to the parent of the focal node and loop
+    sampleMean=sumNodes/nSample #Calculate the mean
+    sampleMean=sampleMean[~np.isnan(sampleMean)] #the sample node (0 => node ID => samples) have nSample=0, so this give "NaN". remove them.
+    sampleHarmoMean=nSample/harmoSumNodes #calculate the harmonic mean
+    sampleHarmoMean=sampleHarmoMean[~np.isnan(sampleHarmoMean)] #Same
     return sampleMean, sampleHarmoMean
     
-#def GetSampleSum(index):
-#    for u in samples:
-#        sumNodes[index, u]=u
-#        v = u
-#        while v != tskit.NULL:
-#            sumNodes[index, parent[v]]=sumNodes[index, parent[v]]+u
-#            v=parent[v]
+TreeList=ts.trees(sample_lists=True) #List of Tree
+nbtree=ts.num_trees #Number of Tree
+
+@nb.jit(nopython=True)
+def getParentTime(parentNod): #Function to get the age of the focal node
+    time=np.zeros(len(parentNod), dtype=np.float64)
+    i=0
+    for u in parentNod: #for all focal node
+        if (u!=-1): #If the focal node is not the virtual root
+            time[i]=times[u] #Grep its age in the node age array
+        else:
+            time[i]=-1 #else return "-1"
+        i=i+1
+    return time
         
-#tree=ts.first()
-TreeList=ts.trees(sample_lists=True) #When iterating over *.trees(), it clear the list. So we reload it
-nbtree=ts.num_trees
-#TreeID=1
-#@nb.jit(nopython=T)
-def getParentArray(nodes):
+def getParentArray(nodes): #Function to get the parent of the focal nodes #I do not remember why, but it seem to not work if I replace the "tree.parent(u)" by a code looking at the ts.parent_array (as done before; which should be more efficient as it allow using numba). Maybe try again latter.
     parent=np.zeros(len(nodes), dtype=np.int32)
     i=0
     for u in nodes:
-        parent[i]=tree.parent(u)
+        parentu=tree.parent(u)
+        parent[i]=parentu
         i=i+1
     return parent[:-1]
 
-with open("testHarmoMean.txt", 'a') as f:
-    for tree in TreeList:
-        #if(tree.index <5):
-        print("Tree:" + str(tree.index) + "/" + str(nbtree))
-        #starttime = timeit.default_timer()
-        nodes=list(tree.nodes(order='timeasc'))
-        nodes.sort()
-        parent=getParentArray(nodes)
-        uniq, uniqInd = np.unique(parent, return_inverse=True)#Get unique value and sorted indive of parent
-        #starttime2 = timeit.default_timer()
-        sampleMean, sampleHarmoMean=GetSampleSum(uniqInd+samples)
-#        print(sampleMean)
-        np.savetxt(f, np.rot90([uniq,sampleMean,sampleHarmoMean, np.repeat(tree.interval[0], len(uniq)), np.repeat(tree.interval[1], len(uniq))]), delimiter=" ")
-        #print("The time difference is :", timeit.default_timer() - starttime)
-        #print("The time difference is :", timeit.default_timer() - starttime2)
-        #sampleMean, sampleHormoMean=GetSampleSum(uniqInd)
-        #print(sampleMean)
-        #print(uniq)
-        #print(uniqInd+samples)
-        #print(uniqInd)
-        #print(len(uniqInd)-samples)
-       # print(sumNodes)
-       # print(nSample[tree.index, 7214])
-       # print(parent)
-       # #kprint(nSample)
-
-#print("Tree sequence: Loaded !")
-#nodes.tofile("test.txt", sep=" ")
-#sampleMean=sumNodes/nSample
-#sampleHarmoMean=nSample/harmoSumNodes
-#np.savetxt("test.txt", sumNodes.astype(int), fmt='%i', delimiter=" ")
-#np.savetxt("testSample.txt", nSample.astype(int), fmt='%i', delimiter=" ")
-#np.savetxt("testParent.txt", parent.astype(int), fmt='%i', delimiter=" ")
-#np.savetxt("testMean.txt", sampleMean, delimiter=" ")
-#np.savetxt("testHarmoMean.txt", sampleHarmoMean, delimiter=" ")
-#np.savetxt("testHarmo.txt", harmoSumNodes, delimiter=" ")
-#ID=0
-#ID=0
-#NodeTim={}
-#for value in ts.tables.nodes.time: #Store in a dictionary the age of nodes.
-#    NodeTim[ID] = value
-#    ID=ID+1
-#
-#print("Node data: compiled !")
-#
-#TreeList=ts.trees(sample_lists=True) #Iterator of trees
-#TreeRoot=set([])
-#for tree in TreeList: #Store all roots in a set
-#    TreeNode=tree.roots
-#    for i in TreeNode:
-#        TreeRoot.add(i)
-#
-#OldNodeNotRoot = {key:value for (key, value) in NodeTim.items() if (value >= 100 and key not in TreeRoot)} #Only keep nodes that are pretty old (e.g. older than 1000 generation here, to reduce computation time) and not roots of trees
-#NodeList=list(OldNodeNotRoot.keys())
-#ts_sub=ts.subset(NodeList, remove_unreferenced=False)
-#print(ts_sub.num_nodes)
-#
-##TreeList=ts_sub.trees(sample_lists=True) #When iterating over *.trees(), it clear the list. So we reload it
-#TreeList=ts.trees(sample_lists=True) #When iterating over *.trees(), it clear the list. So we reload it
-#nbtree=ts_sub.num_trees
-#TreeID=1
-#for tree in TreeList:
-#    TreeInterval=tree.interval
-#    Left=str(TreeInterval[0])
-#    print(Left)
-#    Right=str(TreeInterval[1])
-#    TreeNode=tree.nodes()
-#    print(tree.num_edges)
-#    for node in TreeNode:
-#        #if node in OldNodeNotRoot:
-#            NodeIdMean=statistics.fmean(tree.samples(node)) #Mean of sample numerical ID
-#            print(tree.parent(node))
-#            print(NodeIdMean)
-#            NodeIdHarmoMean=statistics.harmonic_mean(tree.samples(node)) #Mean of sample numerical ID
-#            Line=Left + "\t" + Right + "\t" + str(node) + "\t" + str(OldNodeNotRoot[node]) + "\t" +  str(NodeIdMean) + "\t" +  str(NodeIdHarmoMean) + "\t" + str(len(list(tree.samples(node)))) + "\n" #Output Line
-#            textfileNode.write(Line)  #Write output
-#    print("Tree:" + str(TreeID) + "/" + str(nbtree))
-#    TreeID=TreeID+1
-#
-#print("Done !")
+#with open("testHarmoMean.txt", 'w') as f:
+with open(Prefix + ".NodeStat", 'w') as f: #output file
+    for tree in TreeList: #Main loop. Loop over all trees
+        print("Tree:" + str(tree.index) + "/" + str(nbtree)) #print the output
+        nodes=list(tree.nodes(order='timeasc')) #Get the node list in time ascending order (start with sample, end with root)
+        #print(nodes)
+        nodes.sort()#sort the nodes to git the nodes in sorting order
+        #print(nodes)
+        parent=getParentArray(nodes)#Get the array of the parent of each node (allow reconstucting the tree)
+        uniq, uniqInd = np.unique(parent, return_inverse=True)#Get unique ID and sorted indices of parents. This is the main trick to save time. In the exemples from the tskit github page, kelleher et al use a function like "parent = np.zeros(ts.num_nodes, dtype=np.int32); for u in range(ts.num_nodes): parent[u] = tree.parent(u)". The issue with this is that it create and manipulate a huge array that it is mostly empty (each tree involves only a small subset of nodes). To manipulate only the nodes form the focal tree, I first obtain the parent of each nodes. Then I extract only uniq value, so I obtain unique node. Then, to store the relation between the nodes (parent-child) in an "UniqInd" indice array. For each node, the the uniqINd arrayu indicate what is its parent in the uniqArray. So, the UniqInd array contains a kind of new ID for each parent nodes (so excluding sample node). These new ID are comprise between 0 (the parent node with the smaller age) and "z", the parent node with the oldest age, which is the root. We will use these new ID to traverse trees. Importantly, we need to modify the new ID by adding to them the number of samples (the ID "5" become "15" if there are 10 different samples). This allow traversing function to traverse iteratively the parents and not loop over samples again and again (if there are 10 samples [0-9], the parent new ID must start at "1O" and not at 0 (IDs 0 to 9 are the sample nodes)
+        time=getParentTime(uniq) #Get the time of each parent nodes
+        sampleMean, sampleHarmoMean=GetSampleSum(uniqInd+samples) #traverse the tree and get the means
+        np.savetxt(f, np.rot90([uniq,sampleMean,sampleHarmoMean, np.repeat(tree.interval[0], len(uniq)), np.repeat(tree.interval[1], len(uniq)), time]), delimiter=" ") #save output
+        
+print("Done ! Well done !")
